@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MAIN_H
+#define MAIN_H
 
 #define __MEGA__
 #ifdef __MEGA__
@@ -101,3 +102,6 @@ int arrayMove[AXIS] = { 0 };
 //   free(szBuffer);
 //   return nBufferLength - 1;
 // }
+
+
+#endif
