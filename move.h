@@ -25,7 +25,6 @@ void movePitch(const int move, const int side);
 void moveSide(const int move, const int side);
 void moveRollPitch(const int roll, const int pitch, const int isRoll, const int PitchSide);
 int getArrayMove(int *array, const int n);
-void setLvlAxis(const int n, const int needLVL, const int pin_MoveUp, const int pin_MoveDown);
 
 
 #endif

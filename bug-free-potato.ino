@@ -2,35 +2,44 @@
 #include "namespace.h"
 #include "move.h"
 
-int getChannels(int number, int ch_low, int ch_high, int8_t need_low = -100, int8_t need_high = 100)
-{
-  if (number < 0 || 16 < number)
-  {
+int getChannels(int number, int ch_low, int ch_high, int8_t need_low = -100, int8_t need_high = 100) {
+  if (number < 0 || 16 < number) {
     return 0;
   }
   return map(constrain((int)channels[number], ch_low, ch_high), ch_low, ch_high, need_low, need_high);
 }
 
-void setup()
-{
+void setup() {
 #ifdef __MEGA__
   Serial.begin(115200);
   Serial1.begin(115200);
   Serial2.begin(100000);
-  while (!Serial1)
-  {
+  while (!Serial1) {
     Serial.println("rx no good");
   }
 #else
   Serial.begin(100000);
-  while (!Serial)
-  {
+  while (!Serial) {
     digitalWrite(13, HIGH);
   }
 #endif
 
+
+#ifdef CAN_ENTER
+  if (CAN0.begin(MCP_STDEXT, CAN_500KBPS, MCP_16MHZ) == CAN_OK)
+    Serial.println("MCP2515 Initialized Successfully!");
+  else
+    Serial.println("Error Initializing MCP2515...");
+#endif
 #ifdef MASTER_ENTER
   // pin init
+  initInterLvlAxis();
+  initPinLvlAxis();
+
+  pinMode(pin_MoveLeft, OUTPUT);
+  pinMode(pin_MoveRight, OUTPUT);
+  pinMode(pin_ReversLeft, OUTPUT);
+  pinMode(pin_ReversRight, OUTPUT);
 #endif
   lostFrame = 1;
   failSafe = 1;
@@ -39,65 +48,50 @@ void setup()
   delay(100);
 }
 
-void loop()
-{
+void loop() {
 #ifdef __MEGA__
-  while (Serial2.available())
-  {
+  while (Serial2.available()) {
     currentByte = Serial2.read();
 #else
-  while (Serial.available())
-  {
+  while (Serial.available()) {
     currentByte = Serial.read();
 #endif
-    if (isPacket > 24)
-    {
+    if (isPacket > 24) {
       isPacket = 0;
       break;
     }
-    if (isPacket)
-    {
+    if (isPacket) {
       buffer[isPacket++] = currentByte;
     }
-    if (currentByte == START_BYTE && lastByte == END_BYTE)
-    {
+    if (currentByte == START_BYTE && lastByte == END_BYTE) {
       buffer[isPacket] = currentByte;
       isPacket = 1;
     }
     lastByte = currentByte;
   }
 
-  if (lostFrame && (millis() >= lastTimeLost))
-  {
+  if (lostFrame && (millis() >= lastTimeLost)) {
     // millis - lastTimeLost >= FS_TIME
     failSafe = 1;
   }
 
-  if (buffer[23] & MASK_LOSTFRAME)
-  {
-    if (!lostFrame)
-    {
+  if (buffer[23] & MASK_LOSTFRAME) {
+    if (!lostFrame) {
       lostFrame = 1;
       lastTimeLost = millis() + FS_TIME;
     }
-  }
-  else
-  {
-    if (failSafe)
-    {
+  } else {
+    if (failSafe) {
       failSafe = 0;
     }
     lostFrame = 0;
     setChannelsFromBuffer();
   }
 
-  if (failSafe)
-  {
+  if (failSafe) {
     MEGA_PRINT("\n----Alarm----\n");
     throttle = left = right = 0;
-  }
-  else
-  {
+  } else {
     {
       throttle = constrain((int)channels[CH_TROTTLE], Smin, Smax);
       angle = constrain((int)channels[CH_ANGLE], Smin, Smax);
@@ -112,8 +106,7 @@ void loop()
       // Serial.print(angle), Serial.print(' '), Serial.print(moveBack), Serial.print(' '), Serial.print(throttle), Serial.print(' '), Serial.print(left), Serial.print(' '), Serial.println(right);
       // Serial.print(jumpL), Serial.print(' '), Serial.print(jumpR), Serial.println(' ');
 
-      if (millis() >= lastTimeMove)
-      {
+      if (millis() >= lastTimeMove) {
         moveRollPitch(getChannels(3, Smin_6pos, Smax_6pos, -5, 5), getChannels(4, Smin_6pos, Smax_6pos, -5, 5), getChannels(6, Smin_6pos, Smax_6pos, 0, 1), getChannels(7, Smin_6pos, Smax_6pos, SIDE_LEFT, SIDE_RIGHT));
         lastTimeMove = millis() + MOVE_TIME;
       }
@@ -134,26 +127,19 @@ void loop()
   int usb_i = 0;
   uint8_t currentUsbByte = 0;
 
-  if (Serial.available() >= needRead)
-  {
+  if (Serial.available() >= needRead) {
     usb_i = needRead != 1 ? 1 : 0;
-    while (Serial.available())
-    {
+    while (Serial.available()) {
       currentUsbByte = Serial.read();
-      if (usb_i < 8 && currentUsbByte != '\n' && currentUsbByte != '\r')
-      {
+      if (usb_i < 8 && currentUsbByte != '\n' && currentUsbByte != '\r') {
         usb_msg[usb_i] = currentUsbByte;
         usb_i++;
-        if (usb_msg[0] == 'c' && usb_i == 1)
-        {
+        if (usb_msg[0] == 'c' && usb_i == 1) {
           needRead = 6;
-          if (Serial.available() < 6)
-          {
+          if (Serial.available() < 6) {
             break;
           }
-        }
-        else
-        {
+        } else {
           needRead = 1;
         }
       }
@@ -163,26 +149,19 @@ void loop()
     Serial.println(usb_i);
     Serial.flush();
   }
-  if (usb_msg[0] == 'r')
-  {
+  if (usb_msg[0] == 'r') {
     // MEGA_PRINT("reciver mode \n");
     writeValue(arrayMove, left, right);
-  }
-  else if (usb_msg[0] == 's')
-  {
+  } else if (usb_msg[0] == 's') {
     // MEGA_PRINT("stop mode \n");
     lostFrame = 0;
     failSafe = 0;
     writeValue(arrayMove, 0, 0);
-  }
-  else if (usb_msg[0] == 'q')
-  {
+  } else if (usb_msg[0] == 'q') {
     // MEGA_PRINT("quet mode \n");
     lostFrame = 0;
     failSafe = 0;
-  }
-  else if (usb_msg[0] == 'c' && usb_i <= 7)
-  {
+  } else if (usb_msg[0] == 'c' && usb_i <= 7) {
     // MEGA_PRINT("handle mode \n");
     lostFrame = 0;
     failSafe = 0;
@@ -191,12 +170,10 @@ void loop()
     data[2] = constrain((hexFromAscii(usb_msg[5]) << 4) | hexFromAscii(usb_msg[6]), 0, 0x00FE);
     data[3] = 0xFF;
     Serial1.write(data, 4);
-  }
-  else
-  {
+  } else {
     lostFrame = 0;
     failSafe = 0;
-    int zeroArray[AXIS] = {0};
+    int zeroArray[AXIS] = { 0 };
     writeValue(zeroArray, 0, 0);
   }
 #else
@@ -204,8 +181,7 @@ void loop()
 #endif
 }
 
-int setChannelsFromBuffer()
-{
+int setChannelsFromBuffer() {
   // channels[0] is not used to avoid dissonance
   channels[1] = (uint16_t)((buffer[1] | buffer[2] << 8) & MASK_11b);
   channels[2] = (uint16_t)((buffer[2] >> 3 | buffer[3] << 5) & MASK_11b);
@@ -221,19 +197,15 @@ int setChannelsFromBuffer()
   channels[12] = (uint16_t)((buffer[16] >> 1 | buffer[17] << 7) & MASK_11b);
 }
 
-int writeValue(const int *array, const int trottleLeft, const int trottleRight)
-{
+int writeValue(const int* array, const int trottleLeft, const int trottleRight) {
 #ifdef CAN_ENTER
   // Non work
-  for (int i = 0; i < AXIS; i++)
-  {
+  for (int i = 0; i < AXIS; i++) {
     data[0] = array[i] & 0x00FF;
-    if (i < AXIS / 2)
-    {
+    if (i < AXIS / 2) {
       data[1] = (abs(trottleLeft) & 0x007F) | ((trottleLeft < 0 ? 1 : 0) << 8);
     }
-    if (i >= AXIS / 2)
-    {
+    if (i >= AXIS / 2) {
       data[1] = (abs(trottleRight) & 0x007F) | ((trottleRight < 0 ? 1 : 0) << 8);
     }
     byte sndStat = CAN0.sendMsgBuf(i, 0, 8, data);
@@ -246,17 +218,14 @@ int writeValue(const int *array, const int trottleLeft, const int trottleRight)
 #endif
 #ifdef __MEGA__
 #ifdef RTS_ENTER
-  for (int i = 0; i < AXIS; i++)
-  {
+  for (int i = 0; i < AXIS; i++) {
     data[0] = i + 3;
     data[1] = array[i] & 0x00FF;
-    if (i < AXIS / 2)
-    {
+    if (i < AXIS / 2) {
       data[2] = (abs(trottleLeft) & 0x007F) | ((trottleLeft < 0 ? 1 : 0) << 7);
       // data[4] = (trottleLeft < 0 ? REVERS : !REVERS) & 0x00FF;
     }
-    if (i >= AXIS / 2)
-    {
+    if (i >= AXIS / 2) {
       data[2] = (abs(trottleRight) & 0x007F) | ((trottleRight < 0 ? 1 : 0) << 7);
       // data[4] = (trottleRight < 0 ? REVERS : !REVERS) & 0x00FF;
     }
@@ -271,7 +240,7 @@ int writeValue(const int *array, const int trottleLeft, const int trottleRight)
 #endif
 #endif
 #ifdef MASTER_ENTER
-  setLvlAxis(0, 10, 12);
+  checkLvlAxis(6, arrayMove);
   // pin update
   //  analogWrite(pin_MoveLeft, abs(trottleLeft));
   //  digitalWrite(pin_ReversLeft, trottleLeft < 0 ? REVERS : !REVERS);
@@ -280,44 +249,85 @@ int writeValue(const int *array, const int trottleLeft, const int trottleRight)
 #endif
 }
 
-int inter()
-{
-  curLVL[0][0] += stepLvl * curLVL[0][1];
+void initPinLvlAxis() {
+  for (uint8_t i = 0; i < 12; i++) {
+    pinMode(pin_Lvl[i], OUTPUT);
+  }
+}
+void inter0() {
+  curLVL[0][0] = constrain(curLVL[0][0] + curLVL[0][1], 0, maxLVL);
+}
+void inter1() {
+  curLVL[1][0] = constrain(curLVL[1][0] + curLVL[1][1], 0, maxLVL);
+}
+void inter2() {
+  curLVL[2][0] = constrain(curLVL[2][0] + curLVL[2][1], 0, maxLVL);
+}
+void inter3() {
+  curLVL[3][0] = constrain(curLVL[3][0] + curLVL[3][1], 0, maxLVL);
+}
+void inter4() {
+  curLVL[4][0] = constrain(curLVL[4][0] + curLVL[4][1], 0, maxLVL);
+}
+void inter5() {
+  curLVL[5][0] = constrain(curLVL[5][0] + curLVL[5][1], 0, maxLVL);
+}
+
+void initInterLvlAxis() {
+  attachInterrupt(21, inter0, CHANGE);
+  attachInterrupt(20, inter1, CHANGE);
+  attachInterrupt(19, inter2, CHANGE);
+  attachInterrupt(18, inter3, CHANGE);
+  attachInterrupt(3, inter4, CHANGE);
+  attachInterrupt(2, inter5, CHANGE);
+}
+
+void checkLvlAxis(const int n, int* needLVL) {
+  // !!! STUPID FUNCTION, NO INPUT VALIDATION !!!
+  // size curLVL always more size needLVL
+  for (uint8_t i = 0; i < n; i++) {
+    if (needLVL[i] - deadLvlZone <= curLVL[i][0] && curLVL[i][0] <= needLVL[i] + deadLvlZone) {
+      digitalWrite(pin_Lvl[i * 2], LOW);
+      digitalWrite(pin_Lvl[i * 2 + 1], LOW);
+    } else {
+      if (curLVL[i][0] < needLVL) {
+        digitalWrite(pin_Lvl[i * 2], HIGH);
+        digitalWrite(pin_Lvl[i * 2 + 1], LOW);
+        curLVL[i][1] = 1;
+      } else {
+        digitalWrite(pin_Lvl[i * 2], LOW);
+        digitalWrite(pin_Lvl[i * 2 + 1], HIGH);
+        curLVL[i][1] = -1;
+      }
+    }
+  }
 }
 
 
-u8 hexFromAscii(byte s)
-{
+u8 hexFromAscii(byte s) {
   u8 tmp = 0;
-  if (s < 0x30)
-  {
+  if (s < 0x30) {
     return 0x00;
   }
   // 0-9
-  if (0x30 <= s && s < 0x3A)
-  {
+  if (0x30 <= s && s < 0x3A) {
     return s - 0x30;
   }
-  if (0x3A <= s && s < 0x41)
-  {
+  if (0x3A <= s && s < 0x41) {
     return 0x00;
   }
   // A-F
-  if (0x41 <= s && s < 0x47)
-  {
+  if (0x41 <= s && s < 0x47) {
     return s - 0x37;
   }
-  if (0x47 <= s && s < 0x61)
-  {
+  if (0x47 <= s && s < 0x61) {
     return 0x00;
   }
   // a-f
-  if (0x61 <= s && s < 0x67)
-  {
+  if (0x61 <= s && s < 0x67) {
     return s - 0x57;
   }
-  if (0x67 <= s)
-  {
+  if (0x67 <= s) {
     return 0x00;
   }
 }

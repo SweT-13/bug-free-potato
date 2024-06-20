@@ -9,10 +9,6 @@
 // map axiss  0,  1,  2,  3,  4,  5
 int axiss[countAxis] = { 0 };
 
-int curLVL[6][2] = {0};
-const int deadLvlZone = 1;
-const int stepLvl = 1;
-
 // Принимаю значение стороны (side) которую нужно выровнять \
    По умолчанию выравниваются обе стороны индивидуально
 // Беру максимум и минимум на стороне, и промежуточным осям \
@@ -111,38 +107,3 @@ int getArrayMove(int *array, const int n) {
   return countAxis;
 }
 
-int curLVL[6][2] = {0};
-const int deadLvlZone = 1;
-const int stepLvl = 1;
-
-int inter()
-{
-  curLVL[0][0] += stepLvl * curLVL[0][1];
-}
-
-
-void setLvlAxis(const int n, const int needLVL, const int pin_MoveUp, const int pin_MoveDown)
-{
-  // !!! STUPID FUNCTION, NO INPUT VALIDATION !!!
-  if (needLVL - deadLvlZone <= curLVL[n][0] && curLVL[n][0] <= needLVL + deadLvlZone)
-  {
-    digitalWrite(pin_MoveUp, LOW);
-    digitalWrite(pin_MoveDown, LOW);
-    // curLVL[n][1] = 0;
-  }
-  else
-  {
-    if (curLVL[n][0] < needLVL)
-    {
-      digitalWrite(pin_MoveUp, HIGH);
-      digitalWrite(pin_MoveDown, LOW);
-      curLVL[n][1] = 1;
-    }
-    else
-    {
-      digitalWrite(pin_MoveUp, LOW);
-      digitalWrite(pin_MoveDown, HIGH);
-      curLVL[n][1] = -1;
-    }
-  }
-}

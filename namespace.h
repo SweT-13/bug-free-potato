@@ -1,5 +1,6 @@
 #ifndef MAIN_H
 #define MAIN_H
+#include "move.h"
 
 #define __MEGA__
 #ifdef __MEGA__
@@ -9,13 +10,26 @@
 #endif
 
 #define USB_CONTROL
+#define CAN_ENTER
+// #define RTS_ENTER
+#define MASTER_ENTER
+
+#ifdef CAN_ENTER
+#include <mcp_can.h>
+#include <SPI.h>
+// CAN RX Variables
+unsigned long rxId;
+byte dlc;
+byte rxBuf[8];
+// CAN Interrupt and Chip Select
+#define CAN0_INT 2                              // Set CAN0 INT to pin 2
+MCP_CAN CAN0(10); 
+#endif
+
 #ifdef USB_CONTROL
 char usb_msg[9] = { 'r' };
 int needRead = 1;
 #endif
-// #define CAN_ENTER
-#define RTS_ENTER
-// #define MASTER_ENTER
 
 #define CH_TROTTLE 1
 #define CH_ANGLE 2
@@ -30,6 +44,9 @@ int needRead = 1;
 // 2-pos
 #define pin_ReversRight 7
 #define pin_ReversLeft 8
+
+// 21 20 19 18 3 2 pin busy interrupt
+const uint8_t pin_Lvl[12] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
 
 #define pin_UpRight 3
 #define pin_DownRight 4
@@ -84,6 +101,10 @@ byte data[8] = { 0x00, 0x01, 0x02, 0x03, 0xFF, 0xFF, 0xFF, 0xFF };
 #define REVERS 1
 int arrayMove[AXIS] = { 0 };
 
+#define maxLVL 0xFFFF
+
+volatile int curLVL[countAxis][2] = { 0 };
+const int deadLvlZone = 1;
 
 
 
